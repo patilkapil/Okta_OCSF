@@ -1,0 +1,445 @@
+Parameters:
+  StreamName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    Default: LogsOkta
+    Type: String
+  S3DestKey:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    Default: ocsf-log-format-okta
+    Type: String
+  S3LambdaBucket:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    Default: ocsf-kp
+    Type: String
+  S3Key:
+    Default: conversion_function.zip
+    Type: String
+  LambdaExecutionRole:
+    Description: Lambda Execution Role
+    Type: String
+    Default: ocsf-format-HelloWorldFunctionRole-19N9YJPB8NT79
+  GlueDatabaseName:
+    Type: String
+    Default: "okta_ocsf"
+    Description: "Name of the AWS Glue database for OCSF database"
+  GlueTableName:
+    Type: String
+    MinLength: "4"
+    Default: "okta_ocsf"
+    Description: "Name of the AWS Glue database for OCSF database"
+  PartnerEventSource:
+    Description: Okta Event Source , this step is mandatory and needs to be comppleted
+    MinLength: "1"
+    Type: String
+
+Resources:
+  #Create Event Bus
+  PartnerEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      EventSourceName: !Ref PartnerEventSource
+      Name: !Ref PartnerEventSource
+  # Create Event Rule
+  myeventrule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Okta SysLog event
+      EventBusName: !Ref PartnerEventSource
+      EventPattern:
+         {
+            "detail": {
+              "displayMessage": [ {
+                "prefix": "Authentication of user"
+              }]
+            }
+          }
+      Name: myeventrule
+      State: ENABLED
+
+
+
+      Targets:
+        - Arn: !GetAtt
+            - DeliveryStream
+            - Arn
+          RoleArn: !GetAtt
+            - EventBusRole
+            - Arn
+          Id: "myeventruleid"
+        #Create AWS Lambd Role TODO: Role is wide open
+  Lambdarole:
+      Metadata:
+        cfn-lint:
+          config:
+            ignore_checks:
+              - EIAMPolicyWildcardResource
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        Policies:
+          - PolicyName: lambda-cloudwatch
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Effect: Allow
+                Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:*:*:*
+          - PolicyName: flow-logs-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Effect: Allow
+                Action:
+                - '*'
+                Resource: '*'
+  # CloudFormation creates a lambda function named <CloudFormationStackName-ResourceName-RandomChars>
+  # Example: CreateLambdaFunction-TestLambdaFunction-N7S3FMXJ8Z8R
+  TestLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'S3LambdaBucket'
+        S3Key: !Ref 'S3Key'
+      Handler: app.lambda_handler
+      Role: !GetAtt 'Lambdarole.Arn'
+      Runtime: python3.9
+      Timeout: 300
+  #Creating AWS Glue Catalog
+
+  OCSFOktaDatabase:
+    Type: "AWS::Glue::Database"
+    Properties:
+      DatabaseInput:
+        Description: "Cloudformation for Glue database"
+        Name: !Ref GlueDatabaseName
+      CatalogId: !Ref AWS::AccountId
+
+  OCSFSchemaTable:
+    Type: "AWS::Glue::Table"
+    DependsOn: OCSFOktaDatabase
+    Properties:
+      TableInput:
+        Description: "OCSF Schema Name"
+        TableType: "EXTERNAL_TABLE"
+        Parameters: {
+          "classification": "json",
+          "CrawlerSchemaDeserializerVersion": "1.0",
+          "CrawlerSchemaSerializerVersion": "1.0",
+          "averageRecordSize": "1465",
+          "compressionType": "none",
+          "objectCount": "1",
+          "recordCount": "2",
+          "sizeKey": "2930",
+          "typeOfData": "file"
+        }
+        StorageDescriptor:
+          StoredAsSubDirectories: False
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          Compressed: "false"
+          Columns:
+            - Type: string
+              Name: activity
+            - Type: string
+              Name: activity_id
+            - Type: string
+              Name: auth_protocol
+            - Type: bigint
+              Name: auth_protocol_id
+            - Type: string
+              Name: category_name
+            - Type: bigint
+              Name: category_uid
+            - Type: string
+              Name: class_name
+            - Type: bigint
+              Name: class_uid
+            - Type: boolean
+              Name: is_cleartext
+            - Type: struct<hostname:string,ip:string,instance_uid:string,interface_id:string,svc_name":string>
+              Name: dst_endpoint
+            - Type: string
+              Name: dst_user
+            - Type: array<struct<id:string,type:string,alternateId:string,displayName:string,detailEntry:string>>
+              Name: enrichments
+            - Type: string
+              Name: _time
+            - Type: string
+              Name: logon_type
+            - Type: bigint
+              Name: logon_type_id
+            - Type: string
+              Name: displaymessage
+            - Type: string
+              Name: ref_time
+            - Type: string
+              Name: profile
+            - Type: string
+              Name: session_uid
+            - Type: string
+              Name: severity
+            - Type: bigint
+              Name: severity_id
+            - Type: struct<hostname:string,ip:string,interface_id:string>
+              Name: src_endpo int
+            - Type: struct<type:string,displayname:string,,alternateID:string>
+              Name: src_user
+            - Type: string
+              Name: status
+            - Type: string
+              Name: status_code
+            - Type: string
+              Name: status_detail
+            - Type: bigint
+              Name: status_id
+            - Type: bigint
+              Name: type_uid
+            - Type: string
+              Name: type_name
+            - Type: string
+              Name: partition_0
+          SerdeInfo:
+            Parameters: {
+              "field.delim": ",",
+              "paths": "_time,activity,activity_id,auth_protocol,auth_protocol_id,category_name,category_uid,class_name,class_uid,displayMessage,dst_endpoint,dst_user,enrichments,is_cleartext,logon_type,logon_type_id,profile,ref_time,session_uid,severity,severity_id,src_endpoint,src_user,status,status_code,status_detail,status_id,type_name,type_uid"
+            }
+            SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe"
+          Location: !Sub "s3://${S3DestKey}"
+
+        Name: !Ref GlueTableName
+      DatabaseName: !Ref GlueDatabaseName
+      CatalogId: !Ref AWS::AccountId
+
+  #Create AWS Firehose Artifact
+  DeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Ref StreamName
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Sub 'arn:aws:s3:::${S3DestKey}'
+        BufferingHints:
+          IntervalInSeconds: 300
+          SizeInMBs: 66
+        RoleARN: !GetAtt DeliveryRole.Arn
+        DataFormatConversionConfiguration:
+          Enabled: true
+          InputFormatConfiguration:
+            Deserializer:
+              OpenXJsonSerDe : {}
+          OutputFormatConfiguration :
+            Serializer:
+              ParquetSerDe: {}
+          SchemaConfiguration :
+            CatalogId: !Ref AWS::AccountId
+            RoleARN: !GetAtt DeliveryRole.Arn
+            DatabaseName: !Ref OCSFOktaDatabase
+            TableName: !Ref OCSFSchemaTable
+            Region: !Ref AWS::Region
+            VersionId: LATEST
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Parameters:
+                - ParameterName: LambdaArn
+                  ParameterValue: !GetAtt TestLambdaFunction.Arn
+              Type: Lambda
+
+  s3bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  DeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref 'AWS::AccountId'
+      Path: "/"
+      Policies:
+        - PolicyName: firehose_delivery_policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref s3bucket
+                  - !Join
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref s3bucket
+                      - '/*'
+              - Effect: Allow
+                Action:
+                  - 'glue:GetTableVersions'
+                  - 'glue:GetTableVersion'
+                  - 'glue:GetTableVersions'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:glue:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':catalog'
+                  - !Join
+                    - ''
+                    - - 'arn:aws:glue:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':database/'
+                      -  !Ref OCSFOktaDatabase
+                  - !Join
+                    - ''
+                    - - 'arn:aws:glue:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':table/'
+                      - !Ref OCSFOktaDatabase
+                      -  '/'
+                      -  !Ref OCSFSchemaTable
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:GetFunctionConfiguration'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:lambda:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':function:'
+                      - !Ref TestLambdaFunction
+              - Effect: Allow
+                Action:
+                  - 'kms:GenerateDataKey'
+                  - 'kms:Decrypt'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:kms:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':key/%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'kinesis.${AWS::Region}.amazonaws.com'
+                  StringLike:
+                    'kms:EncryptionContext:aws:s3:arn':
+                      - 'arn:aws:s3:::%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%/*'
+                      - 'arn:aws:s3:::%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:logs:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - ':log-group:/aws/kinesisfirehose/'
+                      - !Ref StreamName
+                      - ':'
+                      - ':log-stream:*'
+                  - !Join
+                    - ''
+                    - - 'arn:aws:logs:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - ':log-group:%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%:log-stream:*'
+              - Effect: Allow
+                Action:
+                  - 'kinesis:DescribeStream'
+                  - 'kinesis:GetShardIterator'
+                  - 'kinesis:GetRecords'
+                  - 'kinesis:ListShards'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:kinesis:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - ':stream/%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%'
+              - Effect: Allow
+                Action: 'kms:Decrypt'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:kms:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - ':key/%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'kinesis.${AWS::Region}.amazonaws.com'
+                  StringLike:
+                    'kms:EncryptionContext:aws:s3:arn':
+                      - 'arn:aws:kinesis:::%FIREHOSE_POLICY_TEMPLATE_PLACEHOLDER%/*'
+  EventBusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: "/"
+      Policies:
+        - PolicyName: firehose_delivery_policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'firehose:PutRecord'
+                  - 'firehose:PutRecordBatch'
+                Resource:
+                  - !Join
+                    - ''
+                    - - 'arn:aws:firehose:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':deliverystream/'
+                      - !Ref StreamName
