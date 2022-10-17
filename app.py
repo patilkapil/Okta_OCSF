@@ -1,6 +1,6 @@
 import base64
+from datetime import datetime
 import json
-
 
 def lambda_handler(event, context):
     """
@@ -26,12 +26,28 @@ def lambda_handler(event, context):
         data = json.loads(data.decode('utf8'))
         # Invoke Transform Data to perform OCSF conversion
         result = tranform_data(data)
+        # Add Dynamic Partioning for S3 buckets
+        format="%Y-%m-%dT%H:%M:%S.%fZ"
+        date_input=data['detail']['published']
+        print('date_inputdate_inputdate_inputdate_input')
+        print(type(date_input))
+        print(date_input)
+
+
+        datetime1 = datetime.strptime(date_input, format)
+        partitionKeys = {}
+        partitionKeys["source"] = 'OktaEventSource'
+        partitionKeys["region"] = context.invoked_function_arn.split(":")[3]
+        partitionKeys["AWS_account"] = context.invoked_function_arn.split(":")[4]
+        partitionKeys["eventhour"] = datetime1.strftime("%Y%m%d%H")
+
         # Reformats the output in a base64 encoded format.OCSF JSON Output will be used by Firehose datastream and AWS Glue Schema
         output_record = {
             'recordId': record['recordId'],  # is this the problem? I used sequenceNumber, it is not right.
             'result': 'Ok',
             'data': base64.b64encode(json.dumps(result, separators=(',', ':')).encode('utf-8') + b'\n').decode(
-                'utf-8')
+                'utf-8'),
+            'metadata': { 'partitionKeys': partitionKeys }
         }
         output.append(output_record)
     print("JSON Output base64 Encoded format:")
@@ -85,18 +101,22 @@ def get_auth_protocol(auth_provider_detail):
     return auth_protocol, auth_protocol_id
 
 
-def get_category():
+def get_audit_category(eventType):
     """
     Function captures the event category name for an event logged by Okta
-
+    get_audit_category function is dedicated for all the Audit Activity Events
+    This function can be be enhanced as more events are included
     Returns
     ------
     category_name: Name of the event category
     category_uid: Category unique identifier for the activity
     """
     #The event category name, for Successful Authentication , category name and category_uid are selected based on the OCSF schema
-    category_name = 'Audit Activity events'
-    category_uid = 3
+    category_name= "Unknown"
+    category_uid= 0
+    if "user.authentication" in eventType:
+        category_name = 'Audit Activity events'
+        category_uid = 3
     return category_name, category_uid
 
 
@@ -254,6 +274,23 @@ def get_status_details(data):
         status_id = 1
     return status, status_code, status_detail, status_id
 
+def get_type_category(eventType):
+    """
+    Function captures the event type for an event logged by Okta
+    get_audit_category function is dedicated for all the Audit Activity Types
+    This function can be be enhanced as more events are included
+    Returns
+    ------
+    type_name: Name of the event Type
+    type_uid: Type unique identifier for the activity
+    """
+    #The event category name, for Successful Authentication , category name and category_uid are selected based on the OCSF schema
+    type_uid= 0
+    type_name= "Unknown"
+    if "user.authentication" in eventType:
+        type_name = 'Authentication Audit: Logon'
+        type_uid = 300201
+    return type_uid, type_name
 
 def tranform_data(data):
     # get activity details based on the eventType that is published
@@ -262,7 +299,7 @@ def tranform_data(data):
     auth_protocol, auth_protocol_id = get_auth_protocol(
         data['detail']['authenticationContext']['authenticationProvider'])
     # get the event category name,
-    category_name, category_uid = get_category()
+    category_name, category_uid = get_audit_category(data['detail']['eventType'])
     # get the event class name
     class_name, class_uid = get_class()
     # check if whether the credentials were passed in clear text.
@@ -293,9 +330,9 @@ def tranform_data(data):
     src_user = get_src_user(data['detail'])
     # get event status details in OCSF format
     status, status_code, status_detail, status_id = get_status_details(data['detail'])
-    # HardCoded for user authentication
-    type_uid = '300201'
-    type_name = 'Authentication Audit: Logon'
+    # get event type details in OCSF format 
+    type_uid, type_name = get_type_category(data['detail']['eventType'])
+
     #Assemeble the JSON string in OCSF format
     json_data = {
         'activity': activity,
@@ -328,5 +365,5 @@ def tranform_data(data):
         'type_uid': type_uid,
         'type_name': type_name
     }
-    # Return theJSON String
+    # Return the JSON String
     return json_data
