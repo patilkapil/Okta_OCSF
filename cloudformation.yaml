@@ -577,7 +577,10 @@ Resources:
       DeliveryStreamType: DirectPut
       ExtendedS3DestinationConfiguration:
         BucketARN: !Sub 'arn:aws:s3:::${MyS3Bucket}'
-        Prefix: "!{partitionKeyFromLambda:source}/region=!{partitionKeyFromLambda:region}/AWS_account=!{partitionKeyFromLambda:AWS_account}/eventhour=!{partitionKeyFromLambda:eventhour}/"
+        Prefix: !Join
+          - ''
+          - - !Select [3, !Split ["/", !Ref PartnerEventBus]]
+            - '/region=!{partitionKeyFromLambda:region}/AWS_account=!{partitionKeyFromLambda:AWS_account}/eventhour=!{partitionKeyFromLambda:eventhour}/'
         ErrorOutputPrefix: okta-ocsf-error
         BufferingHints:
           IntervalInSeconds: 60
