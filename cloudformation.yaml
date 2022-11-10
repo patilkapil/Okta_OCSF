@@ -419,7 +419,7 @@ Resources:
 
               #Assemeble the JSON string in OCSF format
               json_data = {
-                  'activity': activity,
+                  'activity_name': activity,
                   'activity_id': activity_id,
                   'auth_protocol': auth_protocol,
                   'auth_protocol_id': auth_protocol_id,
@@ -498,8 +498,8 @@ Resources:
           Compressed: "false"
           Columns:
             - Type: string
-              Name: activity
-            - Type: string
+              Name: activity_name
+            - Type: bigint
               Name: activity_id
             - Type: string
               Name: auth_protocol
@@ -577,6 +577,7 @@ Resources:
       DeliveryStreamType: DirectPut
       ExtendedS3DestinationConfiguration:
         BucketARN: !Sub 'arn:aws:s3:::${MyS3Bucket}'
+        #Prefix: "!{partitionKeyFromLambda:source}/region=!{partitionKeyFromLambda:region}/AWS_account=!{partitionKeyFromLambda:AWS_account}/eventhour=!{partitionKeyFromLambda:eventhour}/"
         Prefix: !Join
           - ''
           - - !Select [3, !Split ["/", !Ref PartnerEventBus]]
