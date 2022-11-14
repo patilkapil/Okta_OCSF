@@ -30,9 +30,6 @@ def lambda_handler(event, context):
         # Add Dynamic Partioning for S3 buckets
         format = "%Y-%m-%dT%H:%M:%S.%fZ"
         date_input = data['detail']['published']
-        print('date_inputdate_inputdate_inputdate_input')
-        print(type(date_input))
-        print(date_input)
 
         datetime1 = datetime.strptime(date_input, format)
         partitionKeys = {}
@@ -55,12 +52,12 @@ def lambda_handler(event, context):
     return {'records': output}
 
 
-def get_activity_details(activityInfo):
+def get_activity_details(activity_info):
     """
     Function captures an Activity Name that is logged by Okta Syslog
     Parameters
     ----------
-    activityInfo: Activity Info captured by Okta system Log
+    activity_info: Activity Info captured by Okta system Log
 
     Returns
     ------
@@ -73,7 +70,7 @@ def get_activity_details(activityInfo):
     # Use Activity ID associated with an activity
     activity_id = 0
     # Check if User Authentication is part of the activity Info
-    if "user.authentication" in activityInfo:
+    if "user.authentication" in activity_info:
         activity = 'Logon'
         activity_id = 1
     return activity, activity_id
@@ -101,11 +98,11 @@ def get_auth_protocol(auth_provider_detail):
     return auth_protocol, auth_protocol_id
 
 
-def get_audit_category(eventType):
+def get_audit_category(event_type):
     """
     Function captures the event category name for an event logged by Okta
     get_audit_category function is dedicated for all the Audit Activity Events
-    This function can be be enhanced as more events are included
+    This function can be enhanced as more events are included
     Returns
     ------
     category_name: Name of the event category
@@ -114,13 +111,13 @@ def get_audit_category(eventType):
     # The event category name, for Successful Authentication , category name and category_uid are selected based on the OCSF schema
     category_name = "Unknown"
     category_uid = 0
-    if "user.authentication" in eventType:
+    if "user.authentication" in event_type:
         category_name = 'Audit Activity events'
         category_uid = 3
     return category_name, category_uid
 
 
-def get_class():
+def get_event_class():
     """
     Function captures an event class
 
@@ -142,25 +139,22 @@ def get_clear_text_value(auth_protocol):
     auth_protocol: Contains the metadata about the authentication
     Returns
     ------
-    is_clearText: Returns the boolean value
+      Returns the boolean value
     """
-    is_clearText = False
-    # check if protocol is wither FTP or Telnet
-    if ((auth_protocol != 'FTP') and (auth_protocol != 'TELNET')):
-        is_clearText == True
-    return is_clearText
+    # check if protocol is either FTP or Telnet
+    return auth_protocol != 'FTP' and auth_protocol != 'TELNET'
 
 
 def get_destination_endpoint(destination_endpoint):
     """
-    Function find the endpoint for which Authn was targeted
+    Function finds the endpoint for which Authn was targeted
     Parameters
     ----------
     destination_endpoint: Contains the metadata about the endpoint for which AuthN was targeted
 
     Returns
     ------
-    detination_details: Returns the destination endpoint
+    detination_details: Returns the destination endpoint as a dictionary
     """
     # Create a JSON object in OCSF format
     detination_details = {"hostname": destination_endpoint['requestUri'],
@@ -173,7 +167,7 @@ def get_destination_endpoint(destination_endpoint):
 
 def get_logon_type(login_transaction):
     """
-    Function find the type of the login based on the event source
+    Function finds the type of the login based on the event source
     Parameters
     ----------
     login_transaction: Contains the metadata about the endpoint for which AuthN was targeted
@@ -185,10 +179,9 @@ def get_logon_type(login_transaction):
     """
     # Capture the login transaction
     logon_type = login_transaction['type']
-    logon_type_id = 0
     # If WEB is not in logon_type return a normalized value
-    if "WEB" in logon_type:
-        logon_type_id = -1
+    logon_type_id = - 1 if "WEB" in logon_type else 0
+
     return logon_type, logon_type_id
 
 
@@ -204,10 +197,9 @@ def get_severity(severity):
     severity: Returns the event severity
     severity_id: Returns event severity  id
     """
-    severity_id = -1
     # If the event severity is INFO assign value as 1
-    if "INFO" in severity:
-        severity_id = 1
+    severity_id = 1 if "INFO" in severity else 0
+
     return severity, severity_id
 
 
@@ -223,12 +215,11 @@ def get_src_endpoint(data):
     src_end_point: Returns the src end point
     """
     # Create JSON formatted string compatible with OCSF schema
-    src_end_point = {
+    return {
         "hostname": data['debugContext']['debugData']['requestUri'],
         "ip ": data['client']['ipAddress'],
         "interface_id": data['client']['device']
     }
-    return src_end_point
 
 
 def get_src_user(data):
@@ -243,12 +234,11 @@ def get_src_user(data):
     src_user: Returns the user information
     """
     # Create JSON formatted string compatible with OCSF schema
-    src_user = {
+    return {
         'type': data['actor']['type'],
         'name': data['actor']['displayName'],
         'email_addr': data['actor']['alternateId']
     }
-    return src_user
 
 
 def get_status_details(data):
@@ -260,32 +250,33 @@ def get_status_details(data):
 
     Returns
     ------
-    status: Returns the event status
+    status_result: Returns the event status
     status_code: Returns the event status code
     status_detail: Details about authentication Request
     status_id: Normalized ID for the status
     """
-    status = data['outcome']['result']
+    status_result = data['outcome']['result']
     status_code = 'N/A'
     status_detail = ''
     status_id = -1
-    if "SUCCESS" in status:
+    if "SUCCESS" in status_result:
         status_detail = "LOGON_USER_INITIATED"
         status_id = 1
-    return status, status_code, status_detail, status_id
+    return status_result, status_code, status_detail, status_id
 
 
 def get_type_category(eventType):
     """
     Function captures the event type for an event logged by Okta
     get_audit_category function is dedicated for all the Audit Activity Types
-    This function can be be enhanced as more events are included
+    This function can be enhanced as more events are included
     Returns
     ------
     type_name: Name of the event Type
     type_uid: Type unique identifier for the activity
     """
-    # The event category name, for Successful Authentication , category name and category_uid are selected based on the OCSF schema
+    # The event category name, for Successful Authentication , category name and category_uid are selected based on
+    # the OCSF schema
     type_uid = 0
     type_name = "Unknown"
     if "user.authentication" in eventType:
@@ -303,7 +294,7 @@ def get_metadata(original_time,version):
     metadata: Metadata Object is returned
     """
     # Create JSON formatted string compatible with OCSF schema
-    metadata = {
+    return {
         'original_time': original_time,
         'product': {
                     'vendor_name':'Okta',
@@ -311,7 +302,6 @@ def get_metadata(original_time,version):
                     },
         'version': version
     }
-    return metadata
 
 def tranform_data(data):
     # get activity details based on the eventType that is published
@@ -322,7 +312,7 @@ def tranform_data(data):
     # get the event category name,
     category_name, category_uid = get_audit_category(data['detail']['eventType'])
     # get the event class name
-    class_name, class_uid = get_class()
+    class_name, class_uid = get_event_class()
     # check if whether the credentials were passed in clear text.
     is_cleartext = get_clear_text_value(auth_protocol)
     # get the destination endpoint for which the authentication was targeted.
@@ -336,7 +326,7 @@ def tranform_data(data):
     # get type of the logon
     logon_type, logon_type_id = get_logon_type(data['detail']['transaction'])
     # get the description of the message
-    displayMessage = data['detail']['displayMessage']
+    display_message = data['detail']['displayMessage']
     # get the original event as reported
     ref_time = data['time']
     # get userID value
@@ -372,7 +362,7 @@ def tranform_data(data):
         'time': _time,
         'logon_type': logon_type,
         'logon_type_id': logon_type_id,
-        'displayMessage': displayMessage,
+        'displayMessage': display_message,
         'ref_time': ref_time,
         'profile': profile,
         'session_uid': session_uid,
