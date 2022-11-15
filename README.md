@@ -1,6 +1,6 @@
-# Okta_OCSF
 
-### Architecture  
+
+## Architecture  
 
 Here’s how to convert incoming Okta System Log JSON data using the AWS Lambda function. Use the format conversion feature of Kinesis Firehose to convert the JSON data into Parquet. 
 
@@ -24,6 +24,7 @@ Here’s how to convert incoming Okta System Log JSON data using the AWS Lambda 
 <b>Step 6 </b> : Converted Parquet files with OCSF schema will be stored in an S3 bucket as part of Amazon Security Lake. 
 		 	 	 		
 
+## FAQs
   
 ###  Why is this integration guide helpful?
 
@@ -95,4 +96,55 @@ You can start mapping the Okta Syslog event attribute to the destination schema.
 | metadata  | data['time'] ,data['version'] |
 
 
+## Troubleshooting steps
+
+### I don’t see the parquet files created in a designated S3 bucket
+Verify if you see metrics for Event Rules invocations and TriggeredRules. Go to Amazon EventBridge Console, expand the left side panel, and select Rules under Events category. Select Event Bus for Okta and select event rule created for Amazon Security Lake.
+
+![image](https://user-images.githubusercontent.com/2838125/202004366-52ee9ef7-68bc-4056-bef2-193f06c98c06.png)
+
+
+Go to the Monitoring tab and view the metrics for Invocations and TriggeredRules.
+
+![image](https://user-images.githubusercontent.com/2838125/202004408-eb119f42-a597-41c0-a001-9ee203fcad36.png)
+
+Invocations metric shows the number of times a rule invokes a target in response to an event. If you do not see metrics for Invocations, there could be an issue with Okta sending Event data to the EventBridge. Verify your EventBridge connection at Okta and open a support case with Okta if required.
+TriggeredRules metric shows the number of rules that have run and matched with any event. If you do not see metrics for TriggeredRules, there could be an issue with the EventBridge Target which is the Kinesis Firehose Delivery Stream. Verify if this configured correctly and open a support case with AWS if required.
+
+Validate the Event rule configured on the EventBridge service. Check the pattern of the event and validate the source of the event. If an event bridge rule doesn't match the source event, the log event is ignored, and the rest of the data pipeline will fail.
+
+
+
+### My EventRule is working correctly, but I don’t see a parquet file?
+To verify if the data is received in EventBridge, you can create a rule to send the Okta Syslog events to different target destinations like Amazon SQS queue. Follow the steps below:
+* Click a SQS queue by following the steps in the AWS documentation.
+* Go to Amazon EventBridge AWS console. Select Rules and select the Event bus for Okta.
+* Click Create Rule. Enter a name for the Rule and description. Click Next.
+* Keep the Event Source as AWS events or EventBridge partner events. Check Sample event as EventBridge partner events
+![image](https://user-images.githubusercontent.com/2838125/202004659-6269e980-735c-40a1-b918-22acb4c6fdef.png)
+
+* Scroll down and under Event pattern, select Event source as EventBridge partners, Partner as Okta, and Event type as All Events
+![image](https://user-images.githubusercontent.com/2838125/202004770-5813e975-64ee-4ea4-b30a-104320450bac.png)
+
+* Click Next and under Target 1, check Target types as AWS service, Select a target as SQS queue, and select the SQS queue you have created earlier.
+![image](https://user-images.githubusercontent.com/2838125/202004843-b770294f-165f-4989-92cf-9c2e39cdf7de.png)
+
+* Click Next. Add any tags if required and Click Next. Review all the settings and click Create Rule.
+* Log in to Okta session and verify in the SQS queue if you are receiving event data. Follow the steps described in this AWS documentation to receive and verify the data in AWS console
+
+
+### Errors in processing records 
+
+For any issues with parquet file conversion or lambda errors, a file will be written in S3 bucket in a processing-failed folder. View the error using Query with the S3 select option as shown below.
+
+![image](https://user-images.githubusercontent.com/2838125/202005086-5605553d-320f-4458-816b-592ff8cb86d0.png)
+
+Choose the following option to retrieve log data. 
+
+![image](https://user-images.githubusercontent.com/2838125/202005167-a438bbf6-0dcf-41f4-95e2-5b119f550610.png)
+
+
+### If you see an error message like “The schema is invalid” or “Error parsing the schema during the OCSF conversion”
+
+Glue data catalog schema should be in sync with the JSON data (output from the lambda function). Please compare the Glue schema vs. JSON data and make the necessary changes accordingly. 
 
