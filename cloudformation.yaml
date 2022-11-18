@@ -599,7 +599,7 @@ Resources:
             - '/region=!{partitionKeyFromLambda:region}/accountId=!{partitionKeyFromLambda:AWS_account}/eventhour=!{partitionKeyFromLambda:eventhour}/'
         ErrorOutputPrefix: okta-ocsf-error
         BufferingHints:
-          IntervalInSeconds: 60
+          IntervalInSeconds: 300
           SizeInMBs: 66
         RoleARN: !GetAtt DeliveryRole.Arn
         DynamicPartitioningConfiguration:
