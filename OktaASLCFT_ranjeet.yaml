@@ -45,7 +45,7 @@ Resources:
             - EventBusRole
             - Arn
           Id: "OktaEventRuleid"
-        #Create AWS Lambd Role
+        #Create AWS Lambd Role TODO: Role is wide open
   TransformLambdaRole:
       Type: AWS::IAM::Role
       Properties:
@@ -622,7 +622,7 @@ Resources:
             DatabaseName: !Ref OCSFOktaDatabase
             TableName: !Ref OCSFSchemaTable
             Region: !Ref AWS::Region
-            VersionId: LATEST
+            # VersionId: LATEST
         ProcessingConfiguration:
           Enabled: true
           Processors:
@@ -796,18 +796,18 @@ Resources:
       Permissions:
         - "SELECT"
         - "INSERT"
-        - "DELETE"
-        - "ALTER"
+        - "DELETE" 
+        - "ALTER" 
         - "DROP"
         - "DESCRIBE"
       PermissionsWithGrantOption:
         - "SELECT"
         - "INSERT"
-        - "DELETE"
-        - "ALTER"
+        - "DELETE" 
+        - "ALTER" 
         - "DROP"
         - "DESCRIBE"
-
+        
   EventBusRole:
     Type: AWS::IAM::Role
     Properties:
