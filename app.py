@@ -180,7 +180,7 @@ def get_logon_type(login_transaction):
     # Capture the login transaction
     logon_type = login_transaction['type']
     # If WEB is not in logon_type return a normalized value
-    logon_type_id = - 1 if "WEB" in logon_type else 0
+    logon_type_id = 99 if "WEB" in logon_type else 0
 
     return logon_type, logon_type_id
 
@@ -265,25 +265,6 @@ def get_status_details(data):
     return status_result, status_code, status_detail, status_id
 
 
-def get_enrichment_data(client_data):
-    """
-    Function captures the Enrichment data for an event logged by Okta
-    get_enrichment_data function is dedicated for all the enrichment of data
-    This function can be enhanced as more events are included
-    Returns
-    ------
-    type_name: Name of the event Type
-    type_uid: Type unique identifier for the activity
-    """
-    # The event category name, for Successful Authentication , category name and category_uid are selected based on
-    # the OCSF schema
-    type_uid = 0
-    type_name = "Unknown"
-    if "user.authentication" in eventType:
-        type_name = 'Authentication Audit: Logon'
-        type_uid = 300201
-    return type_uid, type_name
-
 def get_type_category(eventType):
     """
     Function captures the event type for an event logged by Okta
@@ -316,11 +297,34 @@ def get_metadata(original_time,version):
     return {
         'original_time': original_time,
         'product': {
-                    'vendor_name':'Okta',
-                    'name': 'Okta System Log'
-                    },
+            'vendor_name':'Okta',
+            'name': 'Okta System Log'
+        },
         'version': version
     }
+
+
+def get_enrichment_data(client_data):
+    """
+    Function captures the Enrichment data for an event logged by Okta
+    get_enrichment_data function is dedicated for all the enrichment of data
+    This function can be enhanced based on data user wants to enrich. In this we will only Client, Devices and Grogrpahicla context
+
+    Returns
+    ------
+    enrichement_array: Array of the Enrichement data
+    """
+    # Data that that will be enriched is location of a user
+    # the OCSF schema
+    enrichment={}
+    enrichment["name"]='geographicalContext'
+    enrichment["data"]=client_data['geographicalContext']
+    enrichment["value"]=client_data['ipAddress']
+    enrichment["type"]='location'
+    enrichment_array=[enrichment]
+
+    return [enrichment]
+
 
 def tranform_data(data):
     # get activity details based on the eventType that is published
@@ -341,12 +345,12 @@ def tranform_data(data):
     # get additional additional information which is critical for the event but doesn't fall under OCSF schema
     enrichments = get_enrichment_data(data['detail']['client'])
     # get time of the event
-    _time = data['time']
+    date_time = datetime.strptime(data['time'],'%Y-%m-%dT%H:%M:%SZ')
+    _time = int(date_time.timestamp())
     # get type of the logon
     logon_type, logon_type_id = get_logon_type(data['detail']['transaction'])
     # get the description of the message
-    date_time = datetime.strptime(data['time'],'%Y-%m-%dT%H:%M:%SZ')
-    _time = int(date_time.timestamp())
+    display_message = data['detail']['displayMessage']
     # get the original event as reported
     ref_time = data['time']
     # get userID value
