@@ -27,13 +27,13 @@ Resources:
       Description: Okta SysLog event
       EventBusName: !Ref PartnerEventBus
       EventPattern:
-         {
-            "detail": {
-              "displayMessage": [ {
-                "prefix": "Authentication of user"
-              }]
-            }
+        {
+          "detail": {
+            "displayMessage": [ {
+              "prefix": "Authentication of user"
+            }]
           }
+        }
       Name: OktaEventRule
       State: ENABLED
 
@@ -45,37 +45,37 @@ Resources:
             - EventBusRole
             - Arn
           Id: "OktaEventRuleid"
-        #Create AWS Lambd Role
+        #Create AWS Lambda Role
   TransformLambdaRole:
-      Type: AWS::IAM::Role
-      Properties:
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
           - Effect: Allow
             Principal:
               Service:
-              - lambda.amazonaws.com
+                - lambda.amazonaws.com
             Action:
-            - sts:AssumeRole
-        Policies:
-          - PolicyName: lambda-cloudwatch
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: lambda-cloudwatch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
               - Effect: Allow
                 Action:
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
                 Resource: !Sub arn:${AWS::Partition}:logs:*:*:*
-          - PolicyName: flow-logs-policy
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
+        - PolicyName: flow-logs-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
               - Effect: Allow
                 Action:
-                - '*'
+                  - '*'
                 Resource: '*'
   # CloudFormation creates a lambda function named <CloudFormationStackName-ResourceName-RandomChars>
   # Example: CreateLambdaFunction-TransformLambdaFunction-N7S3FMXJ8Z8R
@@ -123,7 +123,7 @@ Resources:
                   partitionKeys["source"] = 'OktaEventSource'
                   partitionKeys["region"] = context.invoked_function_arn.split(":")[3]
                   partitionKeys["AWS_account"] = context.invoked_function_arn.split(":")[4]
-                  partitionKeys["eventhour"] = datetime1.strftime("%Y%m%d%H")
+                  partitionKeys["eventDay"] = datetime1.strftime("%Y%m%d")
 
                   # Reformats the output in a base64 encoded format.OCSF JSON Output will be used by Firehose datastream and AWS Glue Schema
                   output_record = {
@@ -384,9 +384,9 @@ Resources:
               return {
                   'original_time': original_time,
                   'product': {
-                      'vendor_name':'Okta',
-                      'name': 'Okta System Log'
-                  },
+                              'vendor_name':'Okta',
+                              'name': 'Okta System Log'
+                              },
                   'version': version
               }
 
@@ -395,20 +395,17 @@ Resources:
               """
               Function captures the Enrichment data for an event logged by Okta
               get_enrichment_data function is dedicated for all the enrichment of data
-              This function can be enhanced based on data user wants to enrich. In this we will only Client, Devices and Grogrpahicla context
+              This function can be enhanced based on data user wants to enrich. In this we will only return
+              Client, Devices and Geographical context
 
               Returns
               ------
-              enrichement_array: Array of the Enrichement data
+              enrichment: Array of the enriched data
               """
               # Data that that will be enriched is location of a user
               # the OCSF schema
-              enrichment={}
-              enrichment["name"]='geographicalContext'
-              enrichment["data"]=client_data['geographicalContext']
-              enrichment["value"]=client_data['ipAddress']
-              enrichment["type"]='location'
-              enrichment_array=[enrichment]
+              enrichment = {'name': 'geographicalContext', 'data': client_data['geographicalContext'],
+                                                   'value': client_data['ipAddress'], 'type': 'location'}
 
               return [enrichment]
 
@@ -491,8 +488,6 @@ Resources:
               }
               # Return the JSON String
               return json_data
-
-
       Handler: index.lambda_handler
       Role: !GetAtt TransformLambdaRole.Arn
       Runtime: python3.8
@@ -622,11 +617,11 @@ Resources:
       DeliveryStreamType: DirectPut
       ExtendedS3DestinationConfiguration:
         BucketARN: !Sub 'arn:aws:s3:::${SecurityLakeS3}'
-        #Prefix: "!{partitionKeyFromLambda:source}/region=!{partitionKeyFromLambda:region}/AWS_account=!{partitionKeyFromLambda:AWS_account}/eventhour=!{partitionKeyFromLambda:eventhour}/"
+        #Prefix: "!{partitionKeyFromLambda:source}/region=!{partitionKeyFromLambda:region}/AWS_account=!{partitionKeyFromLambda:AWS_account}/eventDay=!{partitionKeyFromLambda:eventDay}/"
         Prefix: !Join
           - ''
           - - !Select [3, !Split ["/", !Ref PartnerEventBus]]
-            - '/region=!{partitionKeyFromLambda:region}/accountId=!{partitionKeyFromLambda:AWS_account}/eventHour=!{partitionKeyFromLambda:eventhour}/'
+            - '/region=!{partitionKeyFromLambda:region}/accountId=!{partitionKeyFromLambda:AWS_account}/eventDay=!{partitionKeyFromLambda:eventDay}/'
         ErrorOutputPrefix: okta-ocsf-error
         BufferingHints:
           IntervalInSeconds: 60
@@ -865,15 +860,15 @@ Resources:
                       - ':deliverystream/'
                       - !Ref StreamName
 Outputs:
-   KinesisFirehose:
-     Description: Kinesis Firehose Name
-     Value: !Ref DeliveryStream
-   S3bucketname:
-     Value: !Ref SecurityLakeS3
-     Description: Name of the bucket created
-   GlueDatabase:
-     Value: !Ref OCSFOktaDatabase
-     Description: AWS Glue Database
-   GlueTable:
-     Value: !Ref OCSFSchemaTable
-     Description: AWS Glue Table
+  KinesisFirehose:
+    Description: Kinesis Firehose Name
+    Value: !Ref DeliveryStream
+  S3bucketname:
+    Value: !Ref SecurityLakeS3
+    Description: Name of the bucket created
+  GlueDatabase:
+    Value: !Ref OCSFOktaDatabase
+    Description: AWS Glue Database
+  GlueTable:
+    Value: !Ref OCSFSchemaTable
+    Description: AWS Glue Table

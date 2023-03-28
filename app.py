@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         partitionKeys["source"] = 'OktaEventSource'
         partitionKeys["region"] = context.invoked_function_arn.split(":")[3]
         partitionKeys["AWS_account"] = context.invoked_function_arn.split(":")[4]
-        partitionKeys["eventhour"] = datetime1.strftime("%Y%m%d%H")
+        partitionKeys["eventDay"] = datetime1.strftime("%Y%m%d")
 
         # Reformats the output in a base64 encoded format.OCSF JSON Output will be used by Firehose datastream and AWS Glue Schema
         output_record = {
@@ -308,20 +308,17 @@ def get_enrichment_data(client_data):
     """
     Function captures the Enrichment data for an event logged by Okta
     get_enrichment_data function is dedicated for all the enrichment of data
-    This function can be enhanced based on data user wants to enrich. In this we will only Client, Devices and Grogrpahicla context
+    This function can be enhanced based on data user wants to enrich. In this we will only return
+    Client, Devices and Geographical context
 
     Returns
     ------
-    enrichement_array: Array of the Enrichement data
+    enrichment: Array of the enriched data
     """
     # Data that that will be enriched is location of a user
     # the OCSF schema
-    enrichment={}
-    enrichment["name"]='geographicalContext'
-    enrichment["data"]=client_data['geographicalContext']
-    enrichment["value"]=client_data['ipAddress']
-    enrichment["type"]='location'
-    enrichment_array=[enrichment]
+    enrichment = {'name': 'geographicalContext', 'data': client_data['geographicalContext'],
+                  'value': client_data['ipAddress'], 'type': 'location'}
 
     return [enrichment]
 
