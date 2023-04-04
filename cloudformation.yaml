@@ -560,7 +560,7 @@ Resources:
               Name: metadata
             - Type: array<struct<name:string,type:string,value:string,data:struct<city:string,state:string,country:string,postalCode:string,type:string,value:string,geolocation:struct<lat:string,lon:string>>>>
               Name: enrichments
-            - Type: string
+            - Type: bigint
               Name: time
             - Type: string
               Name: logon_type
