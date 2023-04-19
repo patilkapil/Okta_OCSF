@@ -4,24 +4,22 @@
 
 Here’s how to convert incoming Okta System Log JSON data using the AWS Lambda function. Use the format conversion feature of Kinesis Firehose to convert the JSON data into Parquet. 
 
- ![image](https://user-images.githubusercontent.com/2838125/202000596-978d784c-23d2-474a-b83a-8d14d8527fbf.png)
+ ![image](https://github.com/patilkapil/Okta_OCSF/blob/main/img.png)
 
 
-<b>Step 1</b>: Create integration between Okta and Amazon EventBridge
+<b>Step 1</b>: Create a custom source using the AWS Security Lake service. 
 
-<b>Step 2 </b>: Define an event rule filter to capture events from Okta System Log and communicate it to Amazon Kinesis Firehose
+<b>Step 2</b>: Create integration between Okta and Amazon EventBridge
 
+<b>Step 3</b>: Define an event rule filter to capture events from Okta System Log and communicate to Amazon Kinesis Firehose
 
-<b>Step 3 </b>: Firehose stream invokes a Lambda as it receives an event from EventBridge. The Lambda function will transform Okta’s System Log data into OCSF-formatted JSON.
+<b>Step 4</b>: Firehose stream invokes a Lambda as it receives an event from EventBridge. The Lambda function will transform Okta’s System Log data into OCSF-formatted JSON.
 
+<b>Step 5</b>: Configure a Firehose data stream to transform Okta System Log into OCSF format by invoking a Lambda function.
 
-<b>Step 4 </b> : Configure a Firehose data stream to transform Okta System Log into OCSF format by invoking a Lambda function.
+<b>Step 6</b>: Configure a Firehose data stream to convert the OCSF format from step 4 into a parquet record. (Parquet is the only acceptable format for Amazon Security Lake.)
 
-
-<b>Step 5 </b> : Configure a Firehose data stream to convert the OCSF format from step 4 into a parquet record. (Parquet is the only acceptable format for Amazon Security Lake)
-
-
-<b>Step 6 </b> : Converted Parquet files with OCSF schema will be stored in an S3 bucket as part of Amazon Security Lake. 
+<b>Step 7</b>: Converted Parquet files with OCSF schema will be stored in an S3 bucket created as part of Amazon Security Lake’s custom sources. 
 		 	 	 		
 
 ## FAQs
@@ -75,7 +73,7 @@ You can start mapping the Okta Syslog event attribute to the destination schema.
 | is_cleartext | If Authentication protocol from row #5 is not FTP /TELNET value will be FALSE |
 | dst_endpoint |  hostname: detail ->debugContext->debugData->requestUri : ip -> "" , instance_uid -> "" ,interface_id -> "",svc_name -> detail ->debugContext->debugData->url |
 | dst_user | detail->actor ->alternateID |
-| enrichments | detail ->target |
+| enrichments | detail ->client->geographicalContext |
 | time | detail ->time |
 | logon_type | detail->transaction->type |
 | logon_type_id | detail->transaction->type ==Web then -1 |
